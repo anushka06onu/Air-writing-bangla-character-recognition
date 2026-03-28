@@ -1,0 +1,31 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.env
+.venv
+venv/
+env/
+*env*/
+airwrite_env/
+bangla_env/
+bangla_env310/
+bangla_env311/
+bangla_env_arm/
+
+# Data and large assets
+BanglaLekha-Isolated/
+BanglaLekha-Isolated.zip
+*.pth
+*.pt
+*.onnx
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
