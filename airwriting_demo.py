@@ -27,17 +27,45 @@ model.load_state_dict(torch.load("bangla_resnet18.pth", map_location=device))
 model.to(device)
 model.eval()
 
-# Map class indices to letters
-# Assuming dataset.classes from BanglaLekha
-classes = [
-    "অ", "আ", "ই", "ঈ", "উ", "ঊ", "ঋ", "এ", "ঐ", "ও", "ঔ",
-    "ক", "খ", "গ", "ঘ", "ঙ", "চ", "ছ", "জ", "ঝ", "ঞ",
-    "ট", "ঠ", "ড", "ঢ", "ণ", "ত", "থ", "দ", "ধ", "ন",
-    "প", "ফ", "ব", "ভ", "ম", "য", "র", "ল", "শ", "ষ",
-    "স", "হ", "ড়", "ঢ়", "য়", "ং", "ঃ", "ঁ", "অঙ্ক 0", "অঙ্ক 1",
-    "অঙ্ক 2", "অঙ্ক 3", "অঙ্ক 4", "অঙ্ক 5", "অঙ্ক 6", "অঙ্ক 7", "অঙ্ক 8", "অঙ্ক 9",
-    # Add remaining classes as per dataset
+bangla_letters = [
+    'অ', 'আ', 'ই', 'ঈ', 'উ', 'ঊ', 'ঋ', 'এ', 'ঐ', 'ও', 'ঔ',
+    'ক', 'খ', 'গ', 'ঘ', 'ঙ', 'চ', 'ছ', 'জ', 'ঝ', 'ঞ',
+    'ট', 'ঠ', 'ড', 'ঢ', 'ণ', 'ত', 'থ', 'দ', 'ধ', 'ন',
+    'প', 'ফ', 'ব', 'ভ', 'ম', 'য', 'র', 'ল', 'শ', 'ষ',
+    'স', 'হ', 'ড়', 'ঢ়', 'য়', 'ৎ', 'ং', 'ঃ', 'ঁ',
+    '০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯',
+    'ক্ষ', 'ব্দ', 'ঙ্গ', 'স্ক', 'স্ফ', 'স্হ', 'চ্ছ', 'ক্ত', 'স্ন', 'ষ্ণ',
+    'ম্প', 'ক্ষ', 'প্ত', 'ম্ব', 'ণ্ড', 'দ্ভ', 'ত্থ', 'ষ্ঠ', 'ল্প', 'ষ্প', 'ন্দ', 'ন্ধ', 'ম্ম', 'ণ্ঠ'
 ]
+
+import os
+import json
+
+# ----------------------
+# Dynamic Mapping Setup to prevent index mismatch
+# ----------------------
+class_to_idx = None
+idx_to_folder = None
+
+if os.path.exists("class_to_idx.json"):
+    with open("class_to_idx.json", "r") as f:
+        try:
+            class_to_idx = json.load(f)
+            idx_to_folder = {int(v): k for k, v in class_to_idx.items()}
+            print("✅ Loaded index mapping from 'class_to_idx.json'")
+        except Exception as e:
+            print("⚠️ Warning: Could not parse class_to_idx.json.")
+
+def get_predicted_character(pred_idx, letters):
+    if idx_to_folder is not None and pred_idx in idx_to_folder:
+        folder_name = idx_to_folder[pred_idx]
+        if folder_name.isdigit():
+            letter_idx = int(folder_name) - 1
+            if 0 <= letter_idx < len(letters):
+                return letters[letter_idx]
+    if 0 <= pred_idx < len(letters):
+        return letters[pred_idx]
+    return "Unknown"
 
 # ----------------------
 # 3️⃣ Setup Drawing Canvas
@@ -97,9 +125,11 @@ while True:
         img_tensor = transform(img).unsqueeze(0).to(device)
         with torch.no_grad():
             output = model(img_tensor)
-            pred = torch.argmax(output, 1).item()
-        print(f"Predicted Bangla Character: {classes[pred]}")
-        cv2.putText(frame, f"Predicted: {classes[pred]}", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
+            pred_idx = torch.argmax(output, 1).item()
+        
+        predicted_letter = get_predicted_character(pred_idx, bangla_letters)
+        print(f"Predicted index: {pred_idx} -> Bangla Character: {predicted_letter}")
+        cv2.putText(frame, f"Predicted: {predicted_letter}", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
         cv2.imshow("Webcam", frame)
 
     # Press 'q' to quit
