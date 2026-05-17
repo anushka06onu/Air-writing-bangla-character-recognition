@@ -34,8 +34,8 @@ The application runs an end-to-end pipeline divided into four main phases:
 graph TD
     A[Webcam Feed] --> B[MediaPipe Hand Landmark Detection]
     B --> C{Gesture Check: Index Up?}
-    C -- Yes --Drawing--> D[Virtual Canvas Overlay]
-    C -- No --Idle--> E[Display Frame Only]
+    C -->|Yes, Drawing| D[Virtual Canvas Overlay]
+    C -->|No, Idle| E[Display Frame Only]
     D --> F[Press 'p' - Trigger Prediction]
     F --> G[Extract Contour & Crop Drawing]
     G --> H[Stroke Dilation & Smooth Blur]
