@@ -1,121 +1,419 @@
-# 🚀 Air-Writing Bangla Character Recognition
+# Air-Writing Bangla Character Recognition
 
-A professional, real-time computer vision and deep learning application that enables users to write Bangla characters in the air using a webcam and recognize them using an advanced convolutional neural network (CNN).
+> A webcam-based computer-vision prototype for fingertip trajectory capture and isolated Bangla character classification.
 
-This system tracks the user's index finger in real-time, draws the trajectory on a virtual canvas, and processes it through a customized **ResNet18** model trained on the standard **BanglaLekha-Isolated** dataset, achieving an outstanding **92.25% validation accuracy** across **84 classes**!
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![OpenCV](https://img.shields.io/badge/OpenCV-Vision-5C3EE8?logo=opencv&logoColor=white)](https://opencv.org/)
+[![MediaPipe](https://img.shields.io/badge/MediaPipe-Hand%20Tracking-00A67E)](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker)
 
----
+## Overview
 
-## 🏆 Project Achievements & Core Features
+This project explores touch-free Bangla character input using a standard webcam. It combines hand-landmark detection, index-finger trajectory tracking, virtual-canvas drawing, image preprocessing, and CNN-based isolated-character classification.
 
-* **High-Accuracy CNN**: Powered by a customized ResNet18 model modified for single-channel grayscale input, achieving **92.25% validation accuracy** over 15 epochs of training on **166,105 images**.
-* **Alphabetical Sorting Bug Resolution**: Resolved PyTorch's default `ImageFolder` alphabetical folder indexing issue (e.g. folder `"1"` mapped to index `0`, but folder `"10"` mapped to index `1`). We introduced `NumericalImageFolder` to numerically sort classes, aligning predictions perfectly with natural indexes.
-* **Dynamic Index Decoupling**: Updated inference scripts (`main.py`, `test_model.py`, `airwriting_demo.py`) with an intelligent mapping setup. If `class_to_idx.json` is alphabetically sorted, it automatically reverses it, ensuring that **both old alphabetically-trained weights and new numerically-trained weights work seamlessly**.
-* **Robust Finger Tracking**: Leverages MediaPipe and cvzone to capture fine finger movements in real-time.
-* **Smart Preprocessing Pipeline**: Implements automatic contour cropping, dilation (for stroke thickening), Gaussian smoothing, and 28x28 aspect-ratio resizing to ensure real-world drawings perfectly match the high-quality training dataset format.
+The intended workflow is:
 
----
+1. detect a hand in the webcam frame;
+2. track the index fingertip;
+3. draw its trajectory on a virtual canvas;
+4. crop and normalize the completed trajectory;
+5. classify it with a grayscale ResNet18 model; and
+6. decode the predicted class into a Bangla character.
 
-## 🛠️ Technologies Used
-
-* **Python**: Core programming language.
-* **PyTorch (torch & torchvision)**: Deep learning framework for training, loading model weights, and conducting real-time inference.
-* **OpenCV (cv2)**: Handles real-time video capture, window rendering, drawing operations, image thresholding, and morphological operations.
-* **MediaPipe / cvzone**: Real-time hand tracking and 21-point hand landmark coordinate estimation.
-* **Numpy**: Vectorized array operations for image processing and normalization.
+The repository should currently be treated as an **experimental computer-vision prototype**. Training and inference code are present, but the trained model weights, dataset, complete evaluation evidence, dependency lock file, and real air-writing test results are not committed.
 
 ---
 
-## 🧠 System Architecture & Workflow
+## Project Status
 
-The application runs an end-to-end pipeline divided into four main phases:
+| Component | Implementation | Repository status |
+|---|---|---|
+| Dataset loader | Custom numerically sorted `ImageFolder` | Implemented |
+| Data augmentation | Rotation, translation, and scale perturbation | Implemented |
+| CNN training | Grayscale ResNet18 trained from scratch | Implemented in code |
+| Validation | Random 15% image-level validation split | Implemented in code |
+| Best-checkpoint saving | Saves highest-validation-accuracy state dictionary | Implemented |
+| Hand tracking | cvzone/MediaPipe hand landmarks | Implemented |
+| Gesture-controlled drawing | Index-finger-only drawing gesture | Implemented in `main.py` |
+| Canvas preprocessing | Crop, dilation, blur, aspect-preserving resize, centering | Implemented |
+| Character decoding | Folder-index-to-character mapping | Implemented, requires verification |
+| Trained weights | `bangla_resnet18.pth` | **Not committed** |
+| Training metrics/logs | Accuracy history, loss curves, test metrics | **Not committed** |
+| Webcam evaluation | Accuracy/latency on independently drawn trajectories | **Not performed in repository** |
+| Demo screenshot/video | Real air-writing run | **Not committed** |
+
+---
+
+## System Architecture
 
 ```mermaid
-graph TD
-    A[Webcam Feed] --> B[MediaPipe Hand Landmark Detection]
-    B --> C{Gesture Check: Index Up?}
-    C -->|Yes, Drawing| D[Virtual Canvas Overlay]
-    C -->|No, Idle| E[Display Frame Only]
-    D --> F[Press 'p' - Trigger Prediction]
-    F --> G[Extract Contour & Crop Drawing]
-    G --> H[Stroke Dilation & Smooth Blur]
-    H --> I[Resize & Center to 28x28 Grayscale]
-    I --> J[ResNet18 Inference]
-    J --> K[Dynamic Index Decoding]
-    K --> L[Display Result on Screen]
+flowchart TB
+    subgraph Training[Offline Training]
+        A[BanglaLekha-Isolated Images] --> B[Numerically Sorted Dataset Loader]
+        B --> C[Train and Validation Split]
+        C --> D[Grayscale and 28x28 Resize]
+        D --> E[Rotation, Translation, and Scale Augmentation]
+        E --> F[Single-Channel ResNet18]
+        F --> G[Cross-Entropy Optimization]
+        G --> H[Best Model Checkpoint]
+        B --> I[Class-to-Index Mapping]
+    end
+
+    subgraph Runtime[Webcam Air-Writing Runtime]
+        J[Webcam Frame] --> K[Hand Landmark Detection]
+        K --> L[Index-Finger Gesture Check]
+        L --> M[Trajectory Canvas]
+        M --> N[Contour Crop]
+        N --> O[Stroke Dilation and Gaussian Blur]
+        O --> P[Aspect-Preserving 28x28 Centering]
+        P --> Q[Input Normalization]
+        Q --> H
+        H --> R[Predicted Class Index]
+        I --> S[Character Decoder]
+        R --> S
+        S --> T[Predicted Bangla Character]
+    end
 ```
 
-### 1. Hand Tracking & Gesture Control
-* The webcam video is captured and flipped horizontally to act as a mirror.
-* `cvzone` tracks the hand's 21 landmarks.
-* **Drawing Gesture**: Drawing is enabled *only* when the index finger is raised and all other fingers are folded down (Gesture array: `[0, 1, 0, 0, 0]`). This prevents accidental strokes while moving your hand.
+### Runtime Sequence
 
-### 2. The Virtual Canvas
-* A blank canvas of the same size as your webcam frame is maintained in memory.
-* Moving your raised index finger draws a continuous black line on the canvas.
-* The canvas is combined with the webcam stream using bitwise operations (`cv2.bitwise_and` and `cv2.add`) to create a responsive, live augmented-reality sketch overlay.
-
-### 3. Smart Preprocessing Pipeline
-When you press `p` to predict, your air-drawing is preprocessed through a multi-step transformation:
-1. **Contour Extraction**: Identifies the bounding box containing the drawn character.
-2. **Cropping**: Cuts out empty borders, zooming in on the character.
-3. **Dilation**: Applies a morphological dilation filter to thicken hand-drawn strokes.
-4. **Gaussian Blur**: Smooths out jagged lines or frame-to-frame hand shakes.
-5. **Resizing & Centering**: Resizes the cropped drawing to $28 \times 28$ while maintaining its aspect ratio and centers it on a black background to match the exact dimensions expected by the neural network.
-
-### 4. Neural Network Inference & Decoding
-* The $28 \times 28$ processed image is normalized and passed through the customized **ResNet18** model.
-* The model's prediction is sent to our dynamic mapping function, which safely translates the model's output index to the corresponding character using `class_to_idx.json`.
-* The final Bangla character is beautifully overlayed on the webcam screen and printed in the terminal.
-
----
-
-## 📋 Supported Characters (84 Classes)
-
-Our system recognizes:
-* **11 Vowels**: অ, আ, ই, ঈ, উ, ঊ, ঋ, এ, ঐ, ও, ঔ
-* **39 Consonants**: ক, খ, গ, ঘ, ঙ, চ, ছ, জ, ঝ, ঞ, ট, ঠ, ড, ঢ, ণ, ত, থ, দ, ধ, ন, প, ফ, ব, ভ, ম, য, র, ল, শ, ষ, স, হ, ড়, ঢ়, য়, ৎ, ং, ঃ, ঁ
-* **10 Digits**: ০, ১, ২, ৩, ৪, ৫, ৬, ৭, ৮, ৯
-* **24 Compound Characters**: ক্ষ, ব্দ, ঙ্গ, স্ক, স্ফ, স্হ, চ্ছ, ক্ত, স্ন, ষ্ণ, ম্প, ক্ষ, প্ত, ম্ব, ণ্ড, দ্ভ, ত্থ, ষ্ঠ, ল্প, ষ্প, ন্দ, ন্ধ, ম্ম, ণ্ঠ
+```text
+Webcam
+   |
+   v
+Hand landmarks
+   |
+   v
+Index-finger trajectory
+   |
+   v
+Virtual drawing canvas
+   |
+   v
+Crop -> thicken -> smooth -> resize -> center -> normalize
+   |
+   v
+ResNet18 inference
+   |
+   v
+Class mapping -> Bangla character
+```
 
 ---
 
-## ⚙️ Step-by-Step Setup & Running Guide
+## Computer-Vision Pipeline
 
-### 1. Environment Activation
-We have created a dedicated Python virtual environment `airwrite_env` with all necessary packages installed. Activate it inside your terminal:
+### 1. Hand and Fingertip Tracking
+
+`main.py` uses `cvzone.HandTrackingModule.HandDetector`, which is built on MediaPipe hand landmarks. Drawing occurs when the detected finger-state vector is:
+
+```python
+[0, 1, 0, 0, 0]
+```
+
+This represents an index-finger-only gesture and reduces accidental strokes while repositioning the hand.
+
+### 2. Virtual Canvas
+
+A white canvas matching the webcam frame is maintained in memory. Consecutive index-fingertip positions are connected with black line segments. The drawing mask is composited with the mirrored webcam frame for visual feedback.
+
+### 3. Drawing Preprocessing
+
+When the user requests prediction, `main.py`:
+
+1. converts and inverts the canvas;
+2. locates nonzero drawing pixels;
+3. crops the drawing to its bounding rectangle;
+4. dilates the strokes with a `3 x 3` kernel;
+5. applies Gaussian smoothing;
+6. resizes while preserving aspect ratio;
+7. centers the result on a `28 x 28` canvas; and
+8. converts the image to a model input tensor.
+
+### 4. Character Classification
+
+The training code initializes ResNet18 without pretrained weights and modifies it for grayscale input and the detected number of dataset classes:
+
+```python
+model = models.resnet18(weights=None)
+model.conv1 = nn.Conv2d(
+    1, 64,
+    kernel_size=7,
+    stride=2,
+    padding=3,
+    bias=False
+)
+model.fc = nn.Linear(
+    model.fc.in_features,
+    number_of_classes
+)
+```
+
+The network is optimized using cross-entropy loss, AdamW, and a validation-loss learning-rate scheduler.
+
+---
+
+## Dataset
+
+The training script expects **BanglaLekha-Isolated**, a public dataset for isolated handwritten Bangla characters.
+
+- **Dataset page:** [BanglaLekha-Isolated on Mendeley Data](https://data.mendeley.com/datasets/hf6sf8zrkc/2)
+- **Expected archive:** `BanglaLekha-Isolated.zip`
+- **Expected image directory:** `BanglaLekha-Isolated/Images/`
+- **Expected folder convention:** Numeric class folders such as `1`, `2`, ..., `84`
+
+The dataset is not included in this repository. Follow its original license and citation requirements when downloading and using it.
+
+### Class Ordering
+
+PyTorch's default `ImageFolder` sorts folder names lexicographically, producing an order such as:
+
+```text
+1, 10, 11, ..., 2, 20, ...
+```
+
+`train.py` defines `NumericalImageFolder` so numeric folders are ordered numerically before class indices are assigned.
+
+The repository's current `class_to_idx.json` reflects an older lexicographic mapping, while the current training script would write a numerical mapping. Keep the mapping file and model checkpoint from the **same training run** to avoid incorrect character decoding.
+
+---
+
+## Training Configuration
+
+| Setting | Current value |
+|---|---:|
+| Architecture | ResNet18 from scratch |
+| Input channels | 1 grayscale channel |
+| Input size | `28 x 28` |
+| Batch size | 128 |
+| Epochs | 15 |
+| Initial learning rate | 0.001 |
+| Optimizer | AdamW |
+| Weight decay | `1e-4` |
+| Validation fraction | 15% |
+| Augmentation | Rotation, translation, scale |
+| Checkpoint criterion | Highest validation accuracy |
+
+The device selection supports CUDA, Apple Metal Performance Shaders, and CPU execution.
+
+---
+
+## Evaluation Status
+
+The previous project description reported **92.25% validation accuracy**, but the repository does not contain:
+
+- the trained checkpoint;
+- console training logs;
+- a machine-readable metrics file;
+- learning curves;
+- a validation confusion matrix;
+- per-class precision, recall, or F1-scores; or
+- code that evaluates real webcam air-writing samples.
+
+For that reason, the value is not presented here as repository-verifiable evidence.
+
+### Validation Limitation
+
+The current code uses a random image-level split. A stronger evaluation for handwriting recognition should use writer-independent partitions so writing from the same individual cannot influence both training and validation results.
+
+The project also needs a separate **domain-shift evaluation**: BanglaLekha contains handwritten character images, while runtime inputs are webcam-tracked digital trajectories. Good validation performance on dataset images does not automatically imply good performance on air-written trajectories.
+
+---
+
+## Known Technical Issues
+
+These issues should be corrected before presenting the repository as a completed recognition system.
+
+### 1. Missing Model Checkpoint
+
+`main.py` requires `bangla_resnet18.pth` or `bangla_resnet18 (1).pth`, but neither file is committed. The application therefore exits unless the user trains a model or supplies compatible weights.
+
+### 2. Training/Inference Normalization Mismatch
+
+Training applies:
+
+```python
+transforms.Normalize((0.5,), (0.5,))
+```
+
+The primary inference path currently scales pixels to `[0, 1]` but does not apply the same normalization. This distribution mismatch can reduce prediction quality. Runtime preprocessing should use the exact saved training transform.
+
+### 3. Experimental Script Channel Mismatch
+
+`airwriting_demo.py` converts the grayscale canvas into an RGB image before producing a tensor, while the modified ResNet18 expects one input channel. That script requires correction before use.
+
+### 4. Inconsistent Input Resolution
+
+`train.py` and `main.py` use `28 x 28`, while `airwriting_demo.py` uses `64 x 64`. A single shared preprocessing function should define the input specification.
+
+### 5. Class-Label Verification
+
+The hardcoded Bangla list contains a duplicated compound entry. The exact 84-class character order must be verified against the dataset documentation and saved directly with the checkpoint.
+
+### 6. Bangla Rendering
+
+OpenCV's built-in Hershey fonts do not reliably render Bangla Unicode. Use PIL/Pillow with a bundled Bangla font for the on-frame prediction label.
+
+---
+
+## Repository Assets
+
+The repository currently contains one sample grayscale test image:
+
+![Sample isolated test input](test.png)
+
+This image demonstrates the expected isolated-character style. It is not evidence of the webcam tracking interface or a complete evaluation set.
+
+For a stronger portfolio presentation, add:
+
+- a short GIF of fingertip tracking and drawing;
+- a screenshot showing canvas preprocessing stages;
+- a validation confusion matrix;
+- training/validation loss and accuracy curves; and
+- a grid of correct and incorrect air-writing predictions.
+
+---
+
+## Repository Structure
+
+```text
+Air-writing-bangla-character-recognition/
+|-- airwriting_demo.py       # Alternative experimental MediaPipe runtime
+|-- class_to_idx.json        # Current folder-to-class mapping artifact
+|-- extract_classes.py       # Legacy checkpoint-inspection utility
+|-- main.py                  # Primary cvzone webcam application
+|-- README.md                # Project documentation
+|-- test.png                 # Sample isolated grayscale input
+|-- test_model.py            # Single-image inference utility
+`-- train.py                 # Dataset loading, augmentation, training, validation
+```
+
+This tree uses ASCII characters to avoid encoding problems in GitHub rendering.
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+- Python 3.10 or newer
+- Webcam
+- Git
+
+### 1. Clone the Repository
+
 ```bash
-source airwrite_env/bin/activate
+git clone https://github.com/anushka06onu/Air-writing-bangla-character-recognition.git
+cd Air-writing-bangla-character-recognition
 ```
 
-### 2. Dataset Setup (To train from scratch)
-1. Download `BanglaLekha-Isolated.zip` (approx. 188 MB) from Mendeley Data:
-   👉 **[Mendeley Data: BanglaLekha-Isolated](https://data.mendeley.com/datasets/hf6sf8zrkc/2)**
-2. Place `BanglaLekha-Isolated.zip` directly in the project root directory:
-   `/Users/fatehahossainanushka/Desktop/Air-writing-bangla-character-recognition/`
+### 2. Create and Activate a Virtual Environment
 
-### 3. Model Training
-Run our high-performance, GPU-accelerated training pipeline:
+```bash
+python -m venv .venv
+```
+
+```bash
+# Linux or macOS
+source .venv/bin/activate
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+```
+
+### 3. Install Dependencies
+
+The repository does not currently include `requirements.txt`. Install the dependencies explicitly:
+
+```bash
+pip install torch torchvision opencv-python mediapipe cvzone numpy pillow
+```
+
+For reproducibility, generate and commit a version-pinned `requirements.txt` after validating the environment.
+
+### 4. Download the Dataset
+
+Download `BanglaLekha-Isolated.zip` from the dataset page and place it in the repository root.
+
+### 5. Train the Model
+
 ```bash
 python train.py
 ```
-* **Auto-unzip**: The script automatically extracts your zip file if the folder doesn't exist.
-* **GPU MPS Optimization**: Automatically detects and leverages Apple M-Series GPU hardware acceleration (`mps`) for high-speed training.
-* **Accuracy Checkpoint**: Constantly monitors validation loss and keeps the best weights saved under `bangla_resnet18.pth`.
 
-### 4. Running the Webcam App
-To start writing in the air in real-time, execute the main script:
+The script extracts the archive when necessary and writes:
+
+```text
+bangla_resnet18.pth
+class_to_idx.json
+```
+
+Keep these two files together because the mapping must match the checkpoint.
+
+### 6. Run the Primary Webcam Application
+
 ```bash
 python main.py
 ```
 
+### Controls
+
+| Action | Control |
+|---|---|
+| Draw | Raise only the index finger |
+| Predict | Press `p` |
+| Clear canvas | Press `c` |
+| Quit | Press `q` |
+
 ---
 
-## 🎮 Interactive Controls
+## Recommended Improvements
 
-Once the webcam window is open, use these keyboard controls to interact with the system:
+The highest-value improvement is not another interface. It is a reproducible evaluation across both source-domain handwriting and target-domain air-writing.
 
-* **Draw**: Raise only your **index finger** and draw in front of the camera.
-* **`p` (Predict)**: Runs preprocessing and outputs the recognized Bangla character.
-* **`c` (Clear)**: Wipes the canvas clean so you can draw a new character.
-* **`q` (Quit)**: Cleanly closes all windows and terminates the camera stream.
+- [ ] Create one shared model-definition and preprocessing module.
+- [ ] Apply identical normalization during training and every inference path.
+- [ ] Correct or remove the broken alternative demo script.
+- [ ] Verify all 84 class labels against official dataset metadata.
+- [ ] Save architecture, class list, normalization, input size, and model weights in one versioned checkpoint.
+- [ ] Add `requirements.txt` and operating-system setup notes.
+- [ ] Save epoch metrics to CSV or JSON and generate learning curves.
+- [ ] Report macro-F1, per-class recall, and a confusion matrix.
+- [ ] Use writer-independent train, validation, and test partitions where metadata permits.
+- [ ] Collect a consented, clearly documented air-writing test set from multiple writers.
+- [ ] Compare a small CNN, ResNet18, MobileNetV3, and a lightweight vision-transformer baseline.
+- [ ] Measure end-to-end latency and frames per second.
+- [ ] Add confidence thresholds and an â€œuncertainâ€ result.
+- [ ] Include a real demonstration GIF and failure-case gallery.
+
+---
+
+## Intended Use and Limitations
+
+This project is suitable for:
+
+- learning webcam-based hand tracking;
+- studying trajectory-to-image conversion;
+- experimenting with image preprocessing;
+- training multiclass CNNs; and
+- prototyping accessible Bangla input interfaces.
+
+It is not yet validated for production assistive input, educational assessment, or unrestricted real-world handwriting recognition.
+
+---
+
+## What This Project Demonstrates
+
+- Webcam frame processing with OpenCV.
+- Hand-landmark and fingertip tracking.
+- Gesture-controlled trajectory capture.
+- Morphological and geometric image preprocessing.
+- Grayscale CNN adaptation in PyTorch.
+- Model checkpointing and class-index management.
+- Awareness of source-to-target domain shift between handwritten images and air-written trajectories.
+
+---
+
+## Author
+
+Developed by **Fateha Hossain Anushka**
