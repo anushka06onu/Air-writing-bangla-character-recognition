@@ -47,7 +47,7 @@ class NumericalImageFolder(ImageFolder):
     This ensures that folder '1' -> index 0, '2' -> index 1, ... '84' -> index 83,
     aligning perfectly with the natural order of bangla_letters.
     """
-    def _find_classes(self, dir):
+    def find_classes(self, dir):
         # Find numeric directories (1 to 84)
         classes = [d.name for d in os.scandir(dir) if d.is_dir() and d.name.isdigit()]
         if not classes:
@@ -109,11 +109,6 @@ print(f"   - Total Images: {len(full_dataset)}")
 print(f"   - Training Images: {train_size}")
 print(f"   - Validation Images: {val_size}")
 print(f"   - Number of Classes: {len(full_dataset.classes)}")
-
-# Save class_to_idx mapping to JSON
-with open(CLASS_MAP_PATH, "w") as f:
-    json.dump(full_dataset.class_to_idx, f, indent=4)
-print(f"💾 Class-to-Index mapping saved to '{CLASS_MAP_PATH}'")
 
 # ----------------------------------------------------
 # 5. Model Architecture (ResNet18)
@@ -188,7 +183,10 @@ for epoch in range(1, EPOCHS + 1):
     # Save the best model
     if epoch_val_acc > best_val_acc:
         best_val_acc = epoch_val_acc
-        torch.save(model.state_dict(), MODEL_SAVE_PATH)
+        torch.save({"state_dict": model.state_dict(), "class_to_idx": full_dataset.class_to_idx}, MODEL_SAVE_PATH)
+        with open(CLASS_MAP_PATH, "w") as f:
+            json.dump(full_dataset.class_to_idx, f, indent=4)
         print(f"   🏆 New best validation accuracy: {best_val_acc:.2f}%. Model saved to {MODEL_SAVE_PATH}!")
 
 print(f"🎉 Training complete! Best validation accuracy: {best_val_acc:.2f}%")
+

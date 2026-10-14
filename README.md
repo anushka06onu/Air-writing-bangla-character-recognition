@@ -417,3 +417,8 @@ It is not yet validated for production assistive input, educational assessment, 
 ## Author
 
 Developed by **Fateha Hossain Anushka**
+
+
+## Checkpoint compatibility repair
+
+The webcam demo now supplies one grayscale 28×28 channel, matching training. New training uses the supported `find_classes` override and saves class mapping inside the checkpoint. Legacy state dictionaries require their exact training-time `class_to_idx.json`; inference refuses missing or inconsistent mappings instead of guessing natural label order. Do not pair new numeric-order mappings with older lexicographic-order weights. Retrain or recover the correct original mapping. Camera/GPU accuracy cannot be verified without the missing trained weights and dataset.

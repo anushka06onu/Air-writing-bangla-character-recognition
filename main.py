@@ -1,3 +1,4 @@
+from checkpoint_utils import load_checkpoint, decode_character
 import cv2
 import numpy as np
 import torch
@@ -25,28 +26,9 @@ import json
 # -------------------------------
 # Dynamic Mapping Setup to prevent index mismatch
 # -------------------------------
-class_to_idx = None
-idx_to_folder = None
-
-if os.path.exists("class_to_idx.json"):
-    with open("class_to_idx.json", "r") as f:
-        try:
-            class_to_idx = json.load(f)
-            idx_to_folder = {int(v): k for k, v in class_to_idx.items()}
-            print("✅ Loaded index mapping from 'class_to_idx.json'")
-        except Exception as e:
-            print("⚠️ Warning: Could not parse class_to_idx.json.")
-
 def get_predicted_character(pred_idx, letters):
-    if idx_to_folder is not None and pred_idx in idx_to_folder:
-        folder_name = idx_to_folder[pred_idx]
-        if folder_name.isdigit():
-            letter_idx = int(folder_name) - 1
-            if 0 <= letter_idx < len(letters):
-                return letters[letter_idx]
-    if 0 <= pred_idx < len(letters):
-        return letters[pred_idx]
-    return "Unknown"
+    return decode_character(pred_idx, letters, idx_to_folder)
+
 
 # -------------------------------
 # Load model
@@ -62,15 +44,14 @@ if not os.path.exists(model_path):
 
 if os.path.exists(model_path):
     print(f"📦 Loading model weights from '{model_path}'...")
-    state_dict = torch.load(model_path, map_location=torch.device('cpu'))
-    model.load_state_dict(state_dict)
+    idx_to_folder = load_checkpoint(model, model_path, "class_to_idx.json", len(bangla_letters), "cpu")
 else:
     print("\n" + "="*80)
     print("❌ FATAL ERROR: Model weights file not found!")
     print("Because no model weights were loaded, the application cannot perform predictions.")
     print("Please resolve this using one of the following two options:")
     print("1. If you have the pre-trained weights file 'bangla_resnet18 (1).pth' on your computer,")
-    print("   copy it into this folder: /Users/fatehahossainanushka/Desktop/Air-writing-bangla-character-recognition/")
+    print("   copy it into the directory from which you run this script.")
     print("2. Or, train a new model from scratch:")
     print("   - Download 'BanglaLekha-Isolated.zip' from https://data.mendeley.com/datasets/hf6sf8zrkc/2")
     print("   - Place it in this folder and run: python train.py")
@@ -215,3 +196,4 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
+
