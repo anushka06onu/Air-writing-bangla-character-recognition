@@ -1,3 +1,4 @@
+from checkpoint_utils import load_checkpoint, decode_character
 import cv2
 import numpy as np
 import mediapipe as mp
@@ -23,7 +24,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = models.resnet18()
 model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
 model.fc = nn.Linear(model.fc.in_features, num_classes)
-model.load_state_dict(torch.load("bangla_resnet18.pth", map_location=device))
+idx_to_folder = load_checkpoint(model, "bangla_resnet18.pth", "class_to_idx.json", num_classes, device)
 model.to(device)
 model.eval()
 
@@ -44,28 +45,9 @@ import json
 # ----------------------
 # Dynamic Mapping Setup to prevent index mismatch
 # ----------------------
-class_to_idx = None
-idx_to_folder = None
-
-if os.path.exists("class_to_idx.json"):
-    with open("class_to_idx.json", "r") as f:
-        try:
-            class_to_idx = json.load(f)
-            idx_to_folder = {int(v): k for k, v in class_to_idx.items()}
-            print("✅ Loaded index mapping from 'class_to_idx.json'")
-        except Exception as e:
-            print("⚠️ Warning: Could not parse class_to_idx.json.")
-
 def get_predicted_character(pred_idx, letters):
-    if idx_to_folder is not None and pred_idx in idx_to_folder:
-        folder_name = idx_to_folder[pred_idx]
-        if folder_name.isdigit():
-            letter_idx = int(folder_name) - 1
-            if 0 <= letter_idx < len(letters):
-                return letters[letter_idx]
-    if 0 <= pred_idx < len(letters):
-        return letters[pred_idx]
-    return "Unknown"
+    return decode_character(pred_idx, letters, idx_to_folder)
+
 
 # ----------------------
 # 3️⃣ Setup Drawing Canvas
@@ -79,7 +61,8 @@ prev_x, prev_y = None, None
 # ----------------------
 transform = transforms.Compose([
     transforms.ToPILImage(),
-    transforms.Resize((64,64)),
+    transforms.Grayscale(num_output_channels=1),
+    transforms.Resize((28,28)),
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))
 ])
@@ -102,11 +85,15 @@ while True:
         for handLms in results.multi_hand_landmarks:
             lm = handLms.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
             h, w, _ = frame.shape
-            cx, cy = int(lm.x * w), int(lm.y * h)
+            cx = max(0, min(canvas_size - 1, int(lm.x * canvas_size)))
+            cy = max(0, min(canvas_size - 1, int(lm.y * canvas_size)))
             if prev_x is None:
                 prev_x, prev_y = cx, cy
             cv2.line(canvas, (prev_x, prev_y), (cx, cy), 0, 5)
             prev_x, prev_y = cx, cy
+
+    else:
+        prev_x, prev_y = None, None
 
     # Show current trajectory
     cv2.imshow("Canvas", canvas)
@@ -121,7 +108,7 @@ while True:
 
     # Press 'p' to predict
     if key == ord('p'):
-        img = cv2.cvtColor(canvas, cv2.COLOR_GRAY2RGB)  # convert to 3-channel for PIL compatibility
+        img = canvas  # Match the single-channel 28x28 training input.
         img_tensor = transform(img).unsqueeze(0).to(device)
         with torch.no_grad():
             output = model(img_tensor)
